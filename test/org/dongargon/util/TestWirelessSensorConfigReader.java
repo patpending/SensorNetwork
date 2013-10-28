@@ -1,0 +1,36 @@
+package org.dongargon.util;
+
+import static org.junit.Assert.*;
+
+import java.util.HashMap;
+import java.util.Iterator;
+
+import org.junit.Test;
+
+public class TestWirelessSensorConfigReader {
+
+	@Test
+	public void testGetConfig() {
+		
+		try {
+		
+			WirelessSensorConfigReader reader = new WirelessSensorConfigReader("./conf/example_conf.csv");
+			HashMap<String, WirelessSensorConfig> config = reader.getConfig();
+			
+			
+			Iterator<String> i = config.keySet().iterator();
+			while(i.hasNext())
+			{
+				WirelessSensorConfig conf = (WirelessSensorConfig)config.get(i.next());
+				System.out.println(conf.toString());
+			}
+			assertEquals(1, config.size());
+		
+		} catch (Exception e) {
+			e.printStackTrace();
+
+		}
+		
+	}
+
+}

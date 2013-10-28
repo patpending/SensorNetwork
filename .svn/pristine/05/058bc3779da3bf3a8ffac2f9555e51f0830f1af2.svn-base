@@ -1,0 +1,92 @@
+/**
+ * Sensor network for xbee/zigbee/xrf.
+ */
+package org.dongargon.sensornetwork;
+
+import gnu.io.CommPort;
+import gnu.io.CommPortIdentifier;
+import gnu.io.SerialPort;
+
+import java.io.FileWriter;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.HashMap;
+import java.util.Iterator;
+
+import org.dongargon.sensornetwork.xrf.XRFCommunicator;
+import org.dongargon.util.WirelessSensorConfig;
+import org.dongargon.util.WirelessSensorConfigReader;
+
+public class SensorNetworkHeadless {
+
+	private static String comport;
+	private static String battFileDir;
+	static String tempFileDirectory;
+	private static String sensorConfiFile;
+	static boolean debugMode;
+	HashMap<String, WirelessSensorConfig> config;
+
+	private InputStream in;
+
+	private OutputStream out;
+
+	public static boolean isDebugMode() {
+		return debugMode;
+	}
+
+	/**
+	 * defult constructor, kicks off the processing thread
+	 */
+	public SensorNetworkHeadless() {
+		try {
+			initialize();
+			(new Thread(new XRFCommunicator(config,tempFileDirectory,battFileDir,debugMode,comport))).start();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+
+	}
+
+	
+
+	/**
+	 * Entry point for the application.
+	 */
+	public static void main(String[] args) {
+		if (args.length < 3) {
+			System.out.println("usage: [comport] [tempfile directory] [batt file directory] [config file] [debugMode true/false]");
+			System.exit(-1);
+		}
+		comport = args[0];
+		tempFileDirectory = args[1];
+		battFileDir = args[2];
+		sensorConfiFile = args[3];
+		debugMode = Boolean.parseBoolean(args[4]);
+
+		SensorNetworkHeadless xrf = new SensorNetworkHeadless();
+
+	}
+
+	public void initialize() throws Exception {
+		
+		// read in the wireless sensor config file
+		readConfig();
+	
+
+	}
+
+	
+	private void readConfig() throws Exception {
+
+		WirelessSensorConfigReader reader = new WirelessSensorConfigReader(sensorConfiFile);
+		config = reader.getConfig();
+		Iterator<String> i = config.keySet().iterator();
+		while (i.hasNext()) {
+			WirelessSensorConfig conf = (WirelessSensorConfig) config.get(i.next());
+			System.out.println(conf.toString());
+		}
+	}
+
+}

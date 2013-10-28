@@ -1,0 +1,165 @@
+package org.dongargon.sensornetwork.xbee;
+
+import gnu.io.CommPort;
+import gnu.io.CommPortIdentifier;
+import gnu.io.SerialPort;
+
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+
+import org.dongargon.sensornetwork.SensorData;
+import org.dongargon.util.DataWriter;
+import org.dongargon.util.WirelessSensorConfig;
+
+/**
+ * The processing thread
+ * */
+public class XbeeCommunicator implements Runnable {
+	
+	InputStream in;
+	OutputStream out;
+	 boolean debugMode;
+		private HashMap<String, FileWriter> fileHandles;
+		private HashMap<String, WirelessSensorConfig> config;
+		private SimpleDateFormat df;
+		private String battFileDirectory;
+		private String tempFileDirectory;
+		private String portName;
+		
+	public XbeeCommunicator (OutputStream out, InputStream in, HashMap<String, FileWriter> fileHandles, HashMap<String, WirelessSensorConfig> config, SimpleDateFormat df, String tempFileDirectory, String battFileDirectory, boolean debugMode, String portName) throws Exception {
+
+		this.fileHandles = fileHandles;
+		this.debugMode = debugMode;
+		this.config = config;
+		this.df = df;
+		this.battFileDirectory = battFileDirectory;
+		this.tempFileDirectory = tempFileDirectory;
+		this.portName = portName;
+	}
+
+	
+
+	public void run() {
+		try {
+			while (true) {
+				SensorData data = readXbeeSensorData();
+				if (null != data) {
+					DataWriter.getInstance(config, tempFileDirectory,  battFileDirectory).writeDataToFile(data);
+				}
+				Thread.sleep(1000);
+
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		} 
+	}
+
+	
+
+	/**
+	 * Connect to the Com port
+	 * 
+	 * @param portName
+	 * @throws Exception
+	 */
+	void connect(String portName) throws Exception {
+		System.setProperty("gnu.io.rxtx.SerialPorts", portName);
+		CommPortIdentifier portIdentifier = CommPortIdentifier.getPortIdentifier(portName);
+		if (portIdentifier.isCurrentlyOwned()) {
+			System.out.println("Error: Port is currently in use");
+		} else {
+			CommPort commPort = portIdentifier.open(this.getClass().getName(), 2000);
+
+			if (commPort instanceof SerialPort) {
+				SerialPort serialPort = (SerialPort) commPort;
+				serialPort.setSerialPortParams(9600, SerialPort.DATABITS_8, SerialPort.STOPBITS_1, SerialPort.PARITY_NONE);
+
+				in = serialPort.getInputStream();
+				out = serialPort.getOutputStream();
+
+			} else {
+				System.out.println("Error: Only serial ports are handled.");
+			}
+		}
+	}
+
+
+
+	/**
+	 * reads the serial data from the socket and calls a method to get it parsed
+	 * 
+	 * @return
+	 * @throws Exception
+	 */
+	private SensorData readXbeeSensorData() throws Exception {
+		if (debugMode) {
+			double fakeTemp = Math.random() + 20;
+			String fakeData = new String("AABATT" + fakeTemp);
+			Thread.sleep(5000);
+			return parseXRFData(fakeData);
+		} else {
+			byte[] buffer = new byte[1024];
+			int len = -1;
+
+			if ((len = this.in.read(buffer)) > -1) {
+				Thread.sleep(500);// pop in a little sleep to allow the XRF
+									// data
+									// to complete coming in
+				String data = new String(buffer, 0, len);
+
+				return parseXRFData(data);
+			}
+			return null;
+		}
+	}
+
+	/**
+	 * Method parses the serial data passed in via the argument and returns an
+	 * XRFData object representing the reading
+	 * 
+	 * @param rawData
+	 * @return
+	 * @throws Exception
+	 */
+	private SensorData parseXRFData(String rawData) throws Exception {
+
+		// have we actually got real data?
+		if (rawData.length() > 1) {
+			System.out.println("rawdata:" + rawData);
+			// is it a temp reading?
+			int start = rawData.indexOf("TMPA");
+			if (start > -1) {
+				start += 4;
+				// data will be in the format AATEMPA2.9. Chop out the
+				// sensor ID which is the 'AA' bit
+				String id = rawData.substring(start - 6, start - 4);
+				double temp = Double.parseDouble(rawData.substring(start, start + 5));
+				SensorData data = new SensorData(temp, 0.0, false, id);
+				System.out.println(data);
+				return data;
+
+			}
+			start = rawData.indexOf("BATT");
+			if (start > -1) {
+				start += 4;
+				// data will be in the format AABATTA2.9. Chop out the
+				// sensor ID which is the 'AA' bit
+				String id = rawData.substring(start - 6, start - 4);
+
+				double batt = Double.parseDouble(rawData.substring(start, start + 4));
+				SensorData data = new SensorData(0.0, batt, true, id);
+				System.out.println(data);
+				return data;
+
+			}
+		}
+		return null;
+	}
+}

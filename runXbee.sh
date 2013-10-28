@@ -1,0 +1,1 @@
+java -verbose:gc -Xmx6m -classpath ./bin:./conf -Djava.ext.dirs=./lib:. org.dongargon.sensornetwork.SensorNetworkHeadless /dev/ttyUSB0 /var/www/cc/data/temp batt.txt ./conf/example_conf.csv false XBEE > xbee.log 2>&1&

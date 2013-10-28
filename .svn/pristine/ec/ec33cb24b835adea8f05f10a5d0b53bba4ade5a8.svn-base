@@ -1,0 +1,91 @@
+package org.dongargon.util;
+
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashMap;
+
+import org.dongargon.sensornetwork.SensorData;
+
+public class DataWriter {
+	private HashMap<String, FileWriter> fileHandles = new HashMap<String, FileWriter>();
+	private HashMap<String, WirelessSensorConfig> config;
+	private SimpleDateFormat df;
+	private String tempFileDirectory;
+	private String battFileDirectory;
+	private static DataWriter instance;
+	private DataWriter(HashMap<String, WirelessSensorConfig> config,String tempFileDirectory, String battFileDirectory) {
+		this.fileHandles = fileHandles;
+		this.config = config;
+		this.tempFileDirectory = tempFileDirectory;
+		this.battFileDirectory = battFileDirectory;
+		df = (SimpleDateFormat) DateFormat.getDateInstance();
+		df.applyPattern("ddMMyy HH:mm:ss");
+	}
+	private DataWriter()
+	{
+		//singleton. u cant instatiate it directly
+	}
+	public static synchronized DataWriter getInstance(HashMap<String, WirelessSensorConfig> config,String tempFileDirectory, String battFileDirectory)
+	{
+		if (null == instance)
+		{
+			instance = new DataWriter (config, tempFileDirectory,  battFileDirectory);
+		}
+		return instance;
+	}
+		/**
+		 * writes the XRF data out to its file own file. The mapping of the XRF ID
+		 * e.g. AA and the Friendly Name is configured via the config file specified
+		 * 
+		 * @param data
+		 */
+		public void writeDataToFile(SensorData data) throws Exception {
+			// get a nice looking date
+			String dateStr = df.format(new Date());
+			// lets see if we have a friendly name configured for this sensor
+			String friendlyName = convertIDtoFriendlyName(data.getSensorID());
+			BufferedWriter out;
+			// if its a temperature reading
+			if (!data.isBatteryReading()) {
+				// do we already have an open file handle for it?
+				FileWriter f = (FileWriter) fileHandles.get(friendlyName + ":temp");
+				// ok we dont have one
+				if (null == f) {
+					f = new FileWriter(tempFileDirectory + "/" + friendlyName + ".csv", true);
+					out = new BufferedWriter(f);
+					fileHandles.put(data.getSensorID(), f);
+					out.write(dateStr + "," + Double.toString(data.getReading()));
+					out.newLine();
+					out.flush();
+				}
+
+			} else {
+				// do we already have an open file handle for it?
+				FileWriter f = (FileWriter)fileHandles.get(friendlyName + ":batt");
+				// ok we dont have one
+				if (null == f) {
+					f = new FileWriter(battFileDirectory + "/" + friendlyName + ".csv", true);
+					out = new BufferedWriter(f);
+					fileHandles.put(data.getSensorID(), f);
+					out.write(dateStr+ "," + Double.toString(data.getReading()));
+					out.newLine();
+					out.flush();
+				}
+			}
+
+		}
+		private String convertIDtoFriendlyName(String sensorID) {
+
+			WirelessSensorConfig conf = (WirelessSensorConfig) config.get(sensorID);
+			if (null != conf) {
+				return conf.getNiceName();
+			} else {
+				return sensorID;
+			}
+
+		}
+	
+}
